@@ -1,3 +1,6 @@
+# Flag Column in Browser
+Install the Anki addon from [AnkiWeb](https://ankiweb.net/shared/info/665856733).
+
 ## Description
 ⚑ Adds a **flag column** to the Anki Browse window. Because flags are displayed in their own column, cards are no longer color-highlighted by flag, allowing suspended or buried cards to remain visually distinguishable.
 
