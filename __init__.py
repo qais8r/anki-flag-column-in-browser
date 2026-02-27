@@ -21,6 +21,7 @@ from aqt.qt import (
     QDialogButtonBox,
     QFont,
     QFontMetrics,
+    QHBoxLayout,
     QHeaderView,
     QColor,
     QLabel,
@@ -30,7 +31,9 @@ from aqt.qt import (
     QPen,
     QRadioButton,
     QStyleOptionViewItem,
+    QTimer,
     QVBoxLayout,
+    QWidget,
     Qt,
 )
 from aqt.theme import theme_manager
@@ -60,6 +63,38 @@ _OUTLINE_MODES = {
     _OUTLINE_MODE_FLAG,
 }
 _OUTLINE_MODE = _OUTLINE_MODE_AUTO
+_FLAG_PREVIEW_COLORS = tuple(_FLAG_COLOR_BY_INDEX[index] for index in sorted(_FLAG_COLOR_BY_INDEX))
+
+
+def _flag_theme_qcolor(flag_color: dict[str, str] | None, night_mode: bool) -> QColor:
+    if flag_color is None:
+        return QColor()
+    key = "dark" if night_mode else "light"
+    color = flag_color.get(key) or flag_color.get("light") or flag_color.get("dark")
+    return QColor(color) if color else QColor()
+
+
+def _outline_color_for_mode(
+    mode: str, flag_color: dict[str, str] | None, night_mode: bool
+) -> QColor | Qt.GlobalColor:
+    if mode == _OUTLINE_MODE_BLACK:
+        return Qt.GlobalColor.black
+    if mode == _OUTLINE_MODE_WHITE:
+        return Qt.GlobalColor.white
+    if mode == _OUTLINE_MODE_FLAG and flag_color is not None:
+        return _flag_theme_qcolor(flag_color, night_mode)
+    return Qt.GlobalColor.white if night_mode else Qt.GlobalColor.black
+
+
+def _interpolate_color(start: QColor, end: QColor, progress: float) -> QColor:
+    progress = min(max(progress, 0.0), 1.0)
+    inverse = 1.0 - progress
+    return QColor(
+        round(start.red() * inverse + end.red() * progress),
+        round(start.green() * inverse + end.green() * progress),
+        round(start.blue() * inverse + end.blue() * progress),
+        round(start.alpha() * inverse + end.alpha() * progress),
+    )
 
 
 def _addon_module_name() -> str:
@@ -96,13 +131,9 @@ def _save_outline_mode(mode: str) -> None:
 
 
 def _outline_color(flag_color: dict[str, str] | None) -> QColor | Qt.GlobalColor:
-    if _OUTLINE_MODE == _OUTLINE_MODE_BLACK:
-        return Qt.GlobalColor.black
-    if _OUTLINE_MODE == _OUTLINE_MODE_WHITE:
-        return Qt.GlobalColor.white
     if _OUTLINE_MODE == _OUTLINE_MODE_FLAG and flag_color is not None:
         return theme_manager.qcolor(flag_color)
-    return Qt.GlobalColor.white if theme_manager.night_mode else Qt.GlobalColor.black
+    return _outline_color_for_mode(_OUTLINE_MODE, flag_color, theme_manager.night_mode)
 
 
 def _refresh_browser_view() -> None:
@@ -122,7 +153,9 @@ class FlagOutlineConfigDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Flag Column Settings")
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Flag outline color"))
+        content = QHBoxLayout()
+        options = QVBoxLayout()
+        options.addWidget(QLabel("Flag outline color"))
 
         self._buttons: dict[str, QRadioButton] = {}
         self._group = QButtonGroup(self)
@@ -135,10 +168,35 @@ class FlagOutlineConfigDialog(QDialog):
             button = QRadioButton(label)
             self._group.addButton(button)
             self._buttons[mode] = button
-            layout.addWidget(button)
+            options.addWidget(button)
+
+        options.addStretch(1)
+        content.addLayout(options, 1)
+
+        previews = QHBoxLayout()
+        previews.setSpacing(12)
+        self._light_preview = _AnimatedFlagPreview(night_mode=False, parent=self)
+        self._dark_preview = _AnimatedFlagPreview(night_mode=True, parent=self)
+
+        for label, preview in (
+            ("Light", self._light_preview),
+            ("Dark", self._dark_preview),
+        ):
+            preview_column = QVBoxLayout()
+            title = QLabel(label)
+            title.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            preview_column.addWidget(title)
+            preview_column.addWidget(preview)
+            previews.addLayout(preview_column)
+
+        content.addLayout(previews)
+        layout.addLayout(content)
 
         current = _OUTLINE_MODE if _OUTLINE_MODE in _OUTLINE_MODES else _OUTLINE_MODE_AUTO
         self._buttons[current].setChecked(True)
+        self._sync_preview_mode()
+        for button in self._buttons.values():
+            button.toggled.connect(self._on_mode_toggled)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
@@ -147,6 +205,16 @@ class FlagOutlineConfigDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def _sync_preview_mode(self) -> None:
+        mode = self._selected_mode()
+        self._light_preview.set_outline_mode(mode)
+        self._dark_preview.set_outline_mode(mode)
+
+    def _on_mode_toggled(self, checked: bool) -> None:
+        if not checked:
+            return
+        self._sync_preview_mode()
 
     def _selected_mode(self) -> str:
         for mode, button in self._buttons.items():
@@ -240,6 +308,100 @@ class FlagIconDelegate(StatusDelegate):
         painter.setBrush(theme_manager.qcolor(flag_color))
         painter.drawPath(path)
         painter.restore()
+
+
+class _AnimatedFlagPreview(QWidget):
+    _TICK_MS = 33
+    _HOLD_MS = 450
+    _FADE_MS = 650
+
+    def __init__(self, night_mode: bool, parent=None) -> None:
+        super().__init__(parent)
+        self._night_mode = night_mode
+        self._outline_mode = _OUTLINE_MODE_AUTO
+        self._phase_ms = 0
+        self._current_index = 0
+        self._next_index = 1 if len(_FLAG_PREVIEW_COLORS) > 1 else 0
+        self._timer = QTimer(self)
+        self._timer.setInterval(self._TICK_MS)
+        self._timer.timeout.connect(self._on_tick)
+        self._timer.start()
+        self.setMinimumSize(92, 92)
+
+    def set_outline_mode(self, mode: str) -> None:
+        if mode not in _OUTLINE_MODES or mode == self._outline_mode:
+            return
+        self._outline_mode = mode
+        self.update()
+
+    def hideEvent(self, event) -> None:
+        self._timer.stop()
+        super().hideEvent(event)
+
+    def showEvent(self, event) -> None:
+        self._timer.start()
+        super().showEvent(event)
+
+    def _on_tick(self) -> None:
+        if len(_FLAG_PREVIEW_COLORS) <= 1:
+            return
+        cycle_length = self._HOLD_MS + self._FADE_MS
+        self._phase_ms += self._TICK_MS
+        if self._phase_ms >= cycle_length:
+            self._phase_ms -= cycle_length
+            self._current_index = self._next_index
+            self._next_index = (self._next_index + 1) % len(_FLAG_PREVIEW_COLORS)
+        self.update()
+
+    def _current_flag_color(self) -> dict[str, str] | None:
+        if not _FLAG_PREVIEW_COLORS:
+            return None
+        if len(_FLAG_PREVIEW_COLORS) == 1:
+            return _FLAG_PREVIEW_COLORS[0]
+        current = _FLAG_PREVIEW_COLORS[self._current_index]
+        if self._phase_ms < self._HOLD_MS:
+            return current
+        next_color = _FLAG_PREVIEW_COLORS[self._next_index]
+        progress = (self._phase_ms - self._HOLD_MS) / self._FADE_MS
+        start_qcolor = _flag_theme_qcolor(current, self._night_mode)
+        end_qcolor = _flag_theme_qcolor(next_color, self._night_mode)
+        blended = _interpolate_color(start_qcolor, end_qcolor, progress).name()
+        return {"light": blended, "dark": blended}
+
+    def paintEvent(self, _event) -> None:
+        rect = self.rect().adjusted(5, 5, -5, -5)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        if self._night_mode:
+            background = QColor("#2A2E33")
+            border = QColor("#444A50")
+        else:
+            background = QColor("#F8F9FA")
+            border = QColor("#D2D7DC")
+
+        painter.setPen(QPen(border, 1))
+        painter.setBrush(background)
+        painter.drawRoundedRect(rect, 8, 8)
+
+        flag_color = self._current_flag_color()
+        if flag_color is None:
+            return
+
+        fill = _flag_theme_qcolor(flag_color, self._night_mode)
+        outline = _outline_color_for_mode(self._outline_mode, flag_color, self._night_mode)
+        font = QFont(self.font())
+        font.setPixelSize(int(min(rect.width(), rect.height()) * 0.62))
+        metrics = QFontMetrics(font)
+        text_width = metrics.horizontalAdvance(_FLAG_GLYPH)
+        x = rect.left() + (rect.width() - text_width) // 2
+        y = rect.top() + (rect.height() + metrics.ascent() - metrics.descent()) // 2
+        path = QPainterPath()
+        path.addText(x, y, font, _FLAG_GLYPH)
+
+        painter.setPen(QPen(outline, 1.2))
+        painter.setBrush(fill)
+        painter.drawPath(path)
 
 
 def _on_browser_did_fetch_columns(columns: dict[str, Column]) -> None:

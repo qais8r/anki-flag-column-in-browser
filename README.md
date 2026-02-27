@@ -20,3 +20,4 @@ This makes it easy to see a card's suspension or buried status without relying o
 
 - **Version 1.0** - Initial release.
 - **Version 1.1** - Added configurable flag outline color (including auto, black, white, and match flag color).
+- **Version 1.2** - Added a live preview in the outline configuration menu.
