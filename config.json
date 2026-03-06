@@ -1,7 +1,7 @@
 {
-  "flag_outline": "auto",
+  "flag_outline": "flag",
   "flag_border_enabled": true,
-  "selection_style": "border",
-  "state_icons_enabled": true,
+  "selection_style": "classic",
+  "state_icons_enabled": false,
   "sticky_columns_enabled": false
 }
