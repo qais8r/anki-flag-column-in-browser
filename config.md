@@ -6,10 +6,10 @@ Controls the outline color of the flag glyph in the Browser.
 
 ### flag_outline
 
-- `auto` (default): Matches the current theme (black in light mode, white in dark mode).
+- `flag` (default): Match the outline color to the flag color.
+- `auto`: Matches the current theme (black in light mode, white in dark mode).
 - `black`: Always use a black outline.
 - `white`: Always use a white outline.
-- `flag`: Match the outline color to the flag color.
 
 ### flag_border_enabled
 
@@ -18,13 +18,13 @@ Controls the outline color of the flag glyph in the Browser.
 
 ### selection_style
 
-- `border` (default): Use border-only row selection so suspended/buried/marked backgrounds remain visible.
-- `classic`: Use Anki's default selected-row fill.
+- `classic` (default): Use Anki's default selected-row fill.
+- `border`: Use border-only row selection so suspended/buried/marked backgrounds remain visible.
 
 ### state_icons_enabled
 
-- `true` (default): Show a state column with badges for Marked (`*`), Suspended (`!`), and Buried (`→`).
-- `false`: Hide the state icon column.
+- `false` (default): Hide the state icon column.
+- `true`: Show a state column with badges for Marked (`*`), Suspended (`!`), and Buried (`→`).
 
 ### sticky_columns_enabled
 

@@ -24,3 +24,4 @@ You can optionally show compact **state badges** (marked `*` / suspended `!` / b
 - **Version 1.1** - Added configurable flag outline color (including auto, black, white, and match flag color).
 - **Version 1.2** - Added a live preview in the outline configuration menu.
 - **Version 2.0** - Added optional state badges column, sticky flag/state columns while scrolling, toggleable flag border, and a new selection style option (classic fill vs border-only) with expanded settings preview.
+- **Version 2.1** - Rewrote the addon into separate modules and rebuilt the selection-border and sticky-column behavior to be more reliable.
