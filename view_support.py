@@ -44,7 +44,7 @@ class SelectionBorderOverlay(QWidget):
         left_edge_enabled: bool = True,
         right_edge_enabled: bool = True,
     ) -> None:
-        super().__init__(view.viewport())
+        super().__init__(view)
         self._view = view
         self._left_edge_enabled = left_edge_enabled
         self._right_edge_enabled = right_edge_enabled
@@ -199,7 +199,7 @@ class SelectionBorderOverlay(QWidget):
         viewport = self._safe_viewport()
         if viewport is None:
             return
-        self.setGeometry(viewport.rect())
+        self.setGeometry(viewport.geometry())
 
     def _update_visibility(self) -> None:
         view = self._safe_view()
@@ -318,6 +318,8 @@ class FrozenColumnsController(QObject):
         frozen.setWordWrap(False)
         frozen.setSortingEnabled(False)
         frozen.verticalHeader().hide()
+        frozen.setVerticalScrollMode(self._view.verticalScrollMode())
+        frozen.setHorizontalScrollMode(self._view.horizontalScrollMode())
 
         frozen_header = frozen.horizontalHeader()
         frozen_header.setHighlightSections(False)
@@ -410,11 +412,20 @@ class FrozenColumnsController(QObject):
 
         main_header = view.horizontalHeader()
         frozen_header = frozen_view.horizontalHeader()
+        main_vertical_header = view.verticalHeader()
+        frozen_vertical_header = frozen_view.verticalHeader()
         if main_header is not None and frozen_header is not None:
             frozen_header.setDefaultSectionSize(main_header.defaultSectionSize())
             frozen_header.setMinimumSectionSize(main_header.minimumSectionSize())
             frozen_header.setFixedHeight(main_header.height())
             frozen_header.setFont(main_header.font())
+        if main_vertical_header is not None and frozen_vertical_header is not None:
+            frozen_vertical_header.setDefaultSectionSize(
+                main_vertical_header.defaultSectionSize()
+            )
+            frozen_vertical_header.setMinimumSectionSize(
+                main_vertical_header.minimumSectionSize()
+            )
 
         if separator is not None:
             mid = palette.color(QPalette.ColorRole.Mid).name()
