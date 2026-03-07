@@ -33,7 +33,7 @@ from .view_support import FrozenColumnsController, SelectionBorderOverlay
 
 class BrowserPreview(QWidget):
     _HEADERS = (FLAG_GLYPH, "State", "Sort Field", "Deck", "Created", "Reviews", "Due")
-    _COLUMN_WIDTHS = (34, 88, 390, 230, 118, 84, 162)
+    _COLUMN_WIDTHS = (34, 54, 390, 230, 118, 84, 162)
     _ROWS = (
         (
             0,

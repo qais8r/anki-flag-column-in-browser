@@ -4,6 +4,7 @@ from aqt.browser.table import StatusDelegate
 from aqt.qt import (
     QFont,
     QFontMetrics,
+    QGuiApplication,
     QIcon,
     QColor,
     QModelIndex,
@@ -11,14 +12,13 @@ from aqt.qt import (
     QPainterPath,
     QPen,
     QPixmap,
+    QRectF,
     QSize,
     QStyle,
     QStyleOptionViewItem,
     QStyledItemDelegate,
     Qt,
 )
-from aqt.theme import theme_manager
-
 from .config import AddonSettings, get_settings
 from .constants import (
     FLAG_COLUMN_KEY,
@@ -50,6 +50,7 @@ def draw_flag_glyph(
     *,
     outline_mode: str,
     flag_border_enabled: bool,
+    max_size: int = 16,
 ) -> None:
     if flag_index <= 0:
         return
@@ -58,7 +59,7 @@ def draw_flag_glyph(
     if color is None:
         return
 
-    size = min(16, rect.height() - 2)
+    size = min(max_size, rect.height() - 2)
     if size <= 0:
         return
 
@@ -80,6 +81,49 @@ def draw_flag_glyph(
     painter.setBrush(theme_qcolor(color))
     painter.drawPath(path)
     painter.restore()
+
+
+def _icon_pixmap(size: QSize) -> tuple[QPixmap, QPainter, QRectF]:
+    app = QGuiApplication.instance()
+    screen = app.primaryScreen() if app is not None else None
+    dpr = max(1.0, float(screen.devicePixelRatio())) if screen is not None else 1.0
+    pixel_size = QSize(
+        max(1, round(size.width() * dpr)),
+        max(1, round(size.height() * dpr)),
+    )
+    pixmap = QPixmap(pixel_size)
+    pixmap.setDevicePixelRatio(dpr)
+    pixmap.fill(Qt.GlobalColor.transparent)
+
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+    return pixmap, painter, QRectF(0, 0, size.width(), size.height())
+
+
+def _draw_tile_surface(painter: QPainter, rect: QRectF, *, night_mode: bool) -> QRectF:
+    frame_fill = QColor("#1E242C") if night_mode else QColor("#EDF2F7")
+    frame_pen = QColor("#55606C") if night_mode else QColor("#C5CDD8")
+    content_fill = QColor("#303945") if night_mode else QColor("#FFFFFF")
+
+    painter.setPen(QPen(frame_pen, 1))
+    painter.setBrush(frame_fill)
+    painter.drawRoundedRect(rect, 7, 7)
+
+    inner = rect.adjusted(5, 5, -5, -5)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(content_fill)
+    painter.drawRoundedRect(inner, 6, 6)
+    return inner
+
+
+def _split_preview_rects(bounds: QRectF) -> tuple[QRectF, QRectF]:
+    content = bounds.adjusted(1, 1, -1, -1)
+    gap = 6
+    panel_width = (content.width() - gap) / 2
+    left = QRectF(content.left(), content.top(), panel_width, content.height())
+    right = QRectF(left.right() + gap, content.top(), panel_width, content.height())
+    return left, right
 
 
 def draw_state_badges(painter: QPainter, rect, states: tuple[str, ...]) -> None:
@@ -128,32 +172,20 @@ def draw_state_badges(painter: QPainter, rect, states: tuple[str, ...]) -> None:
 
 
 def outline_mode_tile_icon(mode: str, size: QSize = QSize(90, 56)) -> QIcon:
-    dpr = 1.0
-    pixel_size = QSize(size)
-    pixmap = QPixmap(pixel_size)
-    pixmap.setDevicePixelRatio(dpr)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-
-    night_mode = theme_manager.night_mode
-    card_bg = QColor("#2A3038") if night_mode else QColor("#F3F6FA")
-    card_border = QColor("#444B55") if night_mode else QColor("#C5CDD8")
-    outer = pixmap.rect().adjusted(3, 3, -3, -3)
-    painter.setPen(QPen(card_border, 1))
-    painter.setBrush(card_bg)
-    painter.drawRoundedRect(outer, 8, 8)
+    pixmap, painter, bounds = _icon_pixmap(size)
 
     color = flag_color(4)
     if color is not None:
-        glyph_rect = outer.adjusted(0, 0, -1, -1)
-        draw_flag_glyph(
-            painter,
-            glyph_rect,
-            4,
-            outline_mode=mode,
-            flag_border_enabled=True,
-        )
+        for night_mode, panel in zip((False, True), _split_preview_rects(bounds)):
+            glyph_rect = _draw_tile_surface(painter, panel, night_mode=night_mode)
+            draw_flag_glyph(
+                painter,
+                glyph_rect.adjusted(0, 1, 0, 0).toRect(),
+                4,
+                outline_mode=mode,
+                flag_border_enabled=True,
+                max_size=24,
+            )
 
     painter.end()
     return QIcon(pixmap)
@@ -162,35 +194,26 @@ def outline_mode_tile_icon(mode: str, size: QSize = QSize(90, 56)) -> QIcon:
 def selection_style_tile_icon(
     selection_style: str, size: QSize = QSize(110, 42)
 ) -> QIcon:
-    pixmap = QPixmap(size)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    pixmap, painter, bounds = _icon_pixmap(size)
 
-    night_mode = theme_manager.night_mode
-    card_bg = QColor("#2A3038") if night_mode else QColor("#F8FAFD")
-    card_border = QColor("#444B55") if night_mode else QColor("#C5CDD8")
-    row_bg = QColor("#343C47") if night_mode else QColor("#FFFFFF")
-    selected_blue = QColor("#5BA8FF") if night_mode else QColor("#66B5FF")
-    border_blue = QColor("#67C8FF") if night_mode else QColor("#20A7F7")
+    for night_mode, panel in zip((False, True), _split_preview_rects(bounds)):
+        inner = _draw_tile_surface(painter, panel, night_mode=night_mode)
+        row_bg = QColor("#343C47") if night_mode else QColor("#FFFFFF")
+        selected_blue = QColor("#5BA8FF") if night_mode else QColor("#66B5FF")
+        border_blue = QColor("#67C8FF") if night_mode else QColor("#20A7F7")
 
-    outer = pixmap.rect().adjusted(3, 3, -3, -3)
-    painter.setPen(QPen(card_border, 1))
-    painter.setBrush(card_bg)
-    painter.drawRoundedRect(outer, 7, 7)
-
-    row_rect = outer.adjusted(6, 10, -6, -10)
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(row_bg)
-    painter.drawRoundedRect(row_rect, 4, 4)
-
-    if selection_style == SELECTION_STYLE_CLASSIC:
-        painter.setBrush(selected_blue)
+        row_rect = inner.adjusted(4, 8, -4, -8)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(row_bg)
         painter.drawRoundedRect(row_rect, 4, 4)
-    else:
-        painter.setPen(QPen(border_blue, 2))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRoundedRect(row_rect.adjusted(0, 0, -1, -1), 4, 4)
+
+        if selection_style == SELECTION_STYLE_CLASSIC:
+            painter.setBrush(selected_blue)
+            painter.drawRoundedRect(row_rect, 4, 4)
+        else:
+            painter.setPen(QPen(border_blue, 2))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(row_rect.adjusted(1, 1, -1, -1), 4, 4)
 
     painter.end()
     return QIcon(pixmap)
