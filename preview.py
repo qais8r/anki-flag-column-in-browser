@@ -3,7 +3,6 @@ from __future__ import annotations
 from aqt.qt import (
     QAbstractItemView,
     QHeaderView,
-    QItemSelectionModel,
     QPalette,
     QStandardItem,
     QStandardItemModel,
@@ -22,6 +21,7 @@ from .constants import (
     PREVIEW_ROLE_FLAG,
     PREVIEW_ROLE_STATES,
     PREVIEW_STATE_COLUMN,
+    SELECTION_STYLE_CLASSIC,
     STATE_BURIED,
     STATE_MARKED,
     STATE_SUSPENDED,
@@ -32,6 +32,7 @@ from .view_support import FrozenColumnsController, SelectionBorderOverlay
 
 
 class BrowserPreview(QWidget):
+    _SELECTED_ROW = 4
     _HEADERS = (FLAG_GLYPH, "State", "Sort Field", "Deck", "Created", "Reviews", "Due")
     _COLUMN_WIDTHS = (34, 54, 390, 230, 118, 84, 162)
     _ROWS = (
@@ -163,8 +164,9 @@ class BrowserPreview(QWidget):
 
         self._table = QTableView(self)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self._table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self._table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._table.setWordWrap(False)
@@ -182,24 +184,26 @@ class BrowserPreview(QWidget):
         self._table.setModel(self._model)
 
         self._delegate = PreviewDelegate(self._table)
+        self._delegate.set_draw_selection_border(True)
+        self._delegate.set_preview_selected_row(self._SELECTED_ROW)
         self._table.setItemDelegate(self._delegate)
 
         self._selection_overlay = SelectionBorderOverlay(
             self._table,
-            selection_style_getter=self._selection_style,
+            selection_style_getter=self._overlay_selection_style,
         )
         self._frozen_columns = FrozenColumnsController(
             self._table,
             self._selection_overlay,
-            selection_style_getter=self._selection_style,
+            selection_style_getter=self._overlay_selection_style,
         )
         self._apply_selection_palette()
         self._build_rows()
-        self._select_example_rows()
 
         layout.addWidget(self._table)
         self.setMinimumSize(660, 430)
         self.set_settings(self._settings)
+        self._scroll_to_left()
 
     def set_settings(self, settings: AddonSettings) -> None:
         self._settings = settings
@@ -212,10 +216,8 @@ class BrowserPreview(QWidget):
 
         self._frozen_columns.set_columns(sticky_columns)
         self._frozen_columns.set_enabled(settings.sticky_columns_enabled)
-        self._apply_demo_scroll()
         self._selection_overlay.refresh()
         self._frozen_columns.refresh()
-        self._ensure_selection()
         self._table.viewport().update()
 
     def _apply_selection_palette(self) -> None:
@@ -271,36 +273,11 @@ class BrowserPreview(QWidget):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
             self._table.setColumnWidth(column, width)
 
-    def _select_example_rows(self) -> None:
-        selection_model = self._table.selectionModel()
-        if selection_model is None or self._model.rowCount() < 3:
-            return
-
-        for row in (1, 2):
-            selection_model.select(
-                self._model.index(row, 0),
-                QItemSelectionModel.SelectionFlag.Select
-                | QItemSelectionModel.SelectionFlag.Rows,
-            )
-        self._table.setCurrentIndex(self._model.index(1, 2))
-
-    def _ensure_selection(self) -> None:
-        selection_model = self._table.selectionModel()
-        if selection_model is None or selection_model.hasSelection():
-            return
-        row = 1 if self._model.rowCount() > 1 else 0
-        self._table.selectRow(row)
-
-    def _apply_demo_scroll(self) -> None:
+    def _scroll_to_left(self) -> None:
         bar = self._table.horizontalScrollBar()
         if bar is None:
             return
+        bar.setValue(bar.minimum())
 
-        if self._settings.sticky_columns_enabled:
-            demo_offset = self._table.columnWidth(PREVIEW_FLAG_COLUMN) + 180
-            bar.setValue(min(bar.maximum(), demo_offset))
-        else:
-            bar.setValue(0)
-
-    def _selection_style(self) -> str:
-        return self._settings.selection_style
+    def _overlay_selection_style(self) -> str:
+        return SELECTION_STYLE_CLASSIC

@@ -247,50 +247,100 @@ def _is_first_visible_column(view: QTableView, column: int) -> bool:
     return True
 
 
-def _is_last_visible_column(view: QTableView, column: int, model_column_count: int) -> bool:
+def _is_last_visible_column(
+    view: QTableView, column: int, model_column_count: int
+) -> bool:
     for candidate in range(column + 1, model_column_count):
         if not view.isColumnHidden(candidate):
             return False
     return True
 
 
+def _preview_sticky_active(view: QTableView, settings: AddonSettings) -> bool:
+    if not settings.sticky_columns_enabled:
+        return False
+
+    if view.objectName() == "flagFrozenColumnsView":
+        return True
+
+    bar = view.horizontalScrollBar()
+    return bar is not None and bar.value() > 0
+
+
 def _paint_preview_selection_border(
     painter: QPainter,
     option: QStyleOptionViewItem,
     index: QModelIndex,
+    settings: AddonSettings,
 ) -> None:
     view = _view_from_option(option)
     if view is None:
         return
 
-    selection = view.selectionModel()
     model = index.model()
-    if selection is None or model is None:
-        return
-    if not selection.isRowSelected(index.row(), QModelIndex()):
+    if model is None:
         return
 
+    rect = option.rect
     color = selection_border_qcolor()
     thickness = 3
-    rect = option.rect
-    row = index.row()
-    prev_selected = row > 0 and selection.isRowSelected(row - 1, QModelIndex())
-    next_selected = (
-        row + 1 < model.rowCount()
-        and selection.isRowSelected(row + 1, QModelIndex())
-    )
+    sticky_active = _preview_sticky_active(view, settings)
+    is_frozen_view = view.objectName() == "flagFrozenColumnsView"
+    first_visible = _is_first_visible_column(view, index.column())
+    last_visible = _is_last_visible_column(view, index.column(), model.columnCount())
 
     painter.save()
     painter.setPen(Qt.PenStyle.NoPen)
 
-    if _is_first_visible_column(view, index.column()):
-        painter.fillRect(rect.left(), rect.top(), thickness, rect.height(), color)
-    if _is_last_visible_column(view, index.column(), model.columnCount()):
-        painter.fillRect(rect.right() - thickness + 1, rect.top(), thickness, rect.height(), color)
-    if not prev_selected:
+    if sticky_active:
+        if is_frozen_view and first_visible:
+            viewport = view.viewport()
+            viewport_width = viewport.width() if viewport is not None else rect.width()
+            painter.fillRect(0, rect.top(), viewport_width, thickness, color)
+            painter.fillRect(
+                0,
+                rect.bottom() - thickness + 1,
+                viewport_width,
+                thickness,
+                color,
+            )
+            painter.fillRect(rect.left(), rect.top(), thickness, rect.height(), color)
+        if not is_frozen_view:
+            painter.fillRect(rect.left(), rect.top(), rect.width(), thickness, color)
+            painter.fillRect(
+                rect.left(),
+                rect.bottom() - thickness + 1,
+                rect.width(),
+                thickness,
+                color,
+            )
+        if not is_frozen_view and last_visible:
+            painter.fillRect(
+                rect.right() - thickness + 1,
+                rect.top(),
+                thickness,
+                rect.height(),
+                color,
+            )
+    else:
         painter.fillRect(rect.left(), rect.top(), rect.width(), thickness, color)
-    if not next_selected:
-        painter.fillRect(rect.left(), rect.bottom() - thickness + 1, rect.width(), thickness, color)
+        painter.fillRect(
+            rect.left(),
+            rect.bottom() - thickness + 1,
+            rect.width(),
+            thickness,
+            color,
+        )
+        if first_visible:
+            painter.fillRect(rect.left(), rect.top(), thickness, rect.height(), color)
+        if last_visible:
+            painter.fillRect(
+                rect.right() - thickness + 1,
+                rect.top(),
+                thickness,
+                rect.height(),
+                color,
+            )
 
     painter.restore()
 
@@ -329,9 +379,17 @@ class PreviewDelegate(QStyledItemDelegate):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._settings = AddonSettings()
+        self._draw_selection_border = False
+        self._preview_selected_row: int | None = None
 
     def set_settings(self, settings: AddonSettings) -> None:
         self._settings = settings
+
+    def set_draw_selection_border(self, enabled: bool) -> None:
+        self._draw_selection_border = enabled
+
+    def set_preview_selected_row(self, row: int | None) -> None:
+        self._preview_selected_row = row
 
     def paint(
         self, painter: QPainter | None, option: QStyleOptionViewItem, index: QModelIndex
@@ -339,14 +397,15 @@ class PreviewDelegate(QStyledItemDelegate):
         if painter is None:
             return
 
+        selected = self._preview_selected_row is not None and index.row() == self._preview_selected_row
         paint_option = QStyleOptionViewItem(option)
-        if self._settings.selection_style == SELECTION_STYLE_BORDER and _row_is_selected(
-            option, index
-        ):
+        if self._settings.selection_style == SELECTION_STYLE_BORDER and selected:
             paint_option.state &= ~QStyle.StateFlag.State_Selected
+        elif self._settings.selection_style == SELECTION_STYLE_CLASSIC and selected:
+            paint_option.state |= QStyle.StateFlag.State_Selected
         super().paint(painter, paint_option, index)
-        if self._settings.selection_style == SELECTION_STYLE_BORDER:
-            _paint_preview_selection_border(painter, option, index)
+        if self._draw_selection_border and self._settings.selection_style == SELECTION_STYLE_BORDER and selected:
+            _paint_preview_selection_border(painter, option, index, self._settings)
 
         if index.column() == PREVIEW_FLAG_COLUMN:
             draw_flag_glyph(

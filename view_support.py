@@ -511,6 +511,12 @@ class FrozenColumnsController(QObject):
         finally:
             del blocker
 
+    def frozen_view(self) -> QTableView | None:
+        return self._safe_frozen_view()
+
+    def sticky_active(self) -> bool:
+        return self._is_active()
+
     def _visible_sticky_columns(self) -> tuple[int, ...]:
         view = self._safe_view()
         if view is None:
