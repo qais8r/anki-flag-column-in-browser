@@ -293,27 +293,16 @@ def _paint_preview_selection_border(
     painter.setPen(Qt.PenStyle.NoPen)
 
     if sticky_active:
+        painter.fillRect(rect.left(), rect.top(), rect.width(), thickness, color)
+        painter.fillRect(
+            rect.left(),
+            rect.bottom() - thickness + 1,
+            rect.width(),
+            thickness,
+            color,
+        )
         if is_frozen_view and first_visible:
-            viewport = view.viewport()
-            viewport_width = viewport.width() if viewport is not None else rect.width()
-            painter.fillRect(0, rect.top(), viewport_width, thickness, color)
-            painter.fillRect(
-                0,
-                rect.bottom() - thickness + 1,
-                viewport_width,
-                thickness,
-                color,
-            )
             painter.fillRect(rect.left(), rect.top(), thickness, rect.height(), color)
-        if not is_frozen_view:
-            painter.fillRect(rect.left(), rect.top(), rect.width(), thickness, color)
-            painter.fillRect(
-                rect.left(),
-                rect.bottom() - thickness + 1,
-                rect.width(),
-                thickness,
-                color,
-            )
         if not is_frozen_view and last_visible:
             painter.fillRect(
                 rect.right() - thickness + 1,
