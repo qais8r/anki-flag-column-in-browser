@@ -184,8 +184,15 @@ class BrowserPreview(QWidget):
         self._delegate = PreviewDelegate(self._table)
         self._table.setItemDelegate(self._delegate)
 
-        self._selection_overlay = SelectionBorderOverlay(self._table)
-        self._frozen_columns = FrozenColumnsController(self._table, self._selection_overlay)
+        self._selection_overlay = SelectionBorderOverlay(
+            self._table,
+            selection_style_getter=self._selection_style,
+        )
+        self._frozen_columns = FrozenColumnsController(
+            self._table,
+            self._selection_overlay,
+            selection_style_getter=self._selection_style,
+        )
         self._apply_selection_palette()
         self._build_rows()
         self._select_example_rows()
@@ -294,3 +301,6 @@ class BrowserPreview(QWidget):
             bar.setValue(min(bar.maximum(), demo_offset))
         else:
             bar.setValue(0)
+
+    def _selection_style(self) -> str:
+        return self._settings.selection_style

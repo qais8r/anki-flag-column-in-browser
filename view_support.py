@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TypeVar
+from typing import Callable, TypeVar
 
 from aqt.qt import (
     QAbstractItemModel,
@@ -43,11 +43,14 @@ class SelectionBorderOverlay(QWidget):
         *,
         left_edge_enabled: bool = True,
         right_edge_enabled: bool = True,
+        selection_style_getter: Callable[[], str] | None = None,
     ) -> None:
-        super().__init__(view)
+        viewport = view.viewport()
+        super().__init__(viewport if viewport is not None else view)
         self._view = view
         self._left_edge_enabled = left_edge_enabled
         self._right_edge_enabled = right_edge_enabled
+        self._selection_style_getter = selection_style_getter
 
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
@@ -181,7 +184,12 @@ class SelectionBorderOverlay(QWidget):
         model.dataChanged.connect(self._on_selection_changed)
 
     def _should_paint(self) -> bool:
-        if get_settings().selection_style != SELECTION_STYLE_BORDER:
+        selection_style = (
+            self._selection_style_getter()
+            if self._selection_style_getter is not None
+            else get_settings().selection_style
+        )
+        if selection_style != SELECTION_STYLE_BORDER:
             return False
         view = self._safe_view()
         if view is None:
@@ -199,11 +207,21 @@ class SelectionBorderOverlay(QWidget):
         viewport = self._safe_viewport()
         if viewport is None:
             return
-        self.setGeometry(viewport.geometry())
+        if self.parentWidget() is viewport:
+            self.setGeometry(viewport.rect())
+        else:
+            self.setGeometry(viewport.geometry())
 
     def _update_visibility(self) -> None:
         view = self._safe_view()
-        should_show = self._should_paint() and view is not None and view.isVisible()
+        viewport = self._safe_viewport()
+        should_show = (
+            self._should_paint()
+            and view is not None
+            and view.isVisible()
+            and viewport is not None
+            and viewport.isVisible()
+        )
         self.setVisible(should_show)
         if should_show:
             self.raise_()
@@ -233,12 +251,15 @@ class FrozenColumnsController(QObject):
         self,
         view: QTableView,
         main_selection_overlay: SelectionBorderOverlay,
+        *,
+        selection_style_getter: Callable[[], str] | None = None,
     ) -> None:
         super().__init__(view)
         self._view = view
         self._main_selection_overlay = main_selection_overlay
         self._enabled = False
         self._columns: tuple[int, ...] = ()
+        self._selection_style_getter = selection_style_getter
 
         self._frozen_view = self._build_frozen_view()
         self._sync_model_and_selection()
@@ -246,6 +267,7 @@ class FrozenColumnsController(QObject):
             self._frozen_view,
             left_edge_enabled=True,
             right_edge_enabled=False,
+            selection_style_getter=selection_style_getter,
         )
 
         self._separator = QFrame(view)

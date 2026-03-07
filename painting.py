@@ -17,6 +17,7 @@ from aqt.qt import (
     QStyle,
     QStyleOptionViewItem,
     QStyledItemDelegate,
+    QTableView,
     Qt,
 )
 from .config import AddonSettings, get_settings
@@ -37,6 +38,7 @@ from .row_state import (
     badge_text_color,
     flag_color,
     outline_qcolor,
+    selection_border_qcolor,
     state_icon_fill,
     state_badge_text,
     theme_qcolor,
@@ -222,11 +224,75 @@ def selection_style_tile_icon(
 def _row_is_selected(
     option: QStyleOptionViewItem, index: QModelIndex
 ) -> bool:
-    view = option.widget
+    view = _view_from_option(option)
     selection = view.selectionModel() if view is not None else None
     if selection is not None:
         return selection.isRowSelected(index.row(), QModelIndex())
     return bool(option.state & QStyle.StateFlag.State_Selected)
+
+
+def _view_from_option(option: QStyleOptionViewItem) -> QTableView | None:
+    widget = option.widget
+    while widget is not None:
+        if isinstance(widget, QTableView):
+            return widget
+        widget = widget.parentWidget()
+    return None
+
+
+def _is_first_visible_column(view: QTableView, column: int) -> bool:
+    for candidate in range(column - 1, -1, -1):
+        if not view.isColumnHidden(candidate):
+            return False
+    return True
+
+
+def _is_last_visible_column(view: QTableView, column: int, model_column_count: int) -> bool:
+    for candidate in range(column + 1, model_column_count):
+        if not view.isColumnHidden(candidate):
+            return False
+    return True
+
+
+def _paint_preview_selection_border(
+    painter: QPainter,
+    option: QStyleOptionViewItem,
+    index: QModelIndex,
+) -> None:
+    view = _view_from_option(option)
+    if view is None:
+        return
+
+    selection = view.selectionModel()
+    model = index.model()
+    if selection is None or model is None:
+        return
+    if not selection.isRowSelected(index.row(), QModelIndex()):
+        return
+
+    color = selection_border_qcolor()
+    thickness = 3
+    rect = option.rect
+    row = index.row()
+    prev_selected = row > 0 and selection.isRowSelected(row - 1, QModelIndex())
+    next_selected = (
+        row + 1 < model.rowCount()
+        and selection.isRowSelected(row + 1, QModelIndex())
+    )
+
+    painter.save()
+    painter.setPen(Qt.PenStyle.NoPen)
+
+    if _is_first_visible_column(view, index.column()):
+        painter.fillRect(rect.left(), rect.top(), thickness, rect.height(), color)
+    if _is_last_visible_column(view, index.column(), model.columnCount()):
+        painter.fillRect(rect.right() - thickness + 1, rect.top(), thickness, rect.height(), color)
+    if not prev_selected:
+        painter.fillRect(rect.left(), rect.top(), rect.width(), thickness, color)
+    if not next_selected:
+        painter.fillRect(rect.left(), rect.bottom() - thickness + 1, rect.width(), thickness, color)
+
+    painter.restore()
 
 
 class BrowserStatusDelegate(StatusDelegate):
@@ -279,6 +345,8 @@ class PreviewDelegate(QStyledItemDelegate):
         ):
             paint_option.state &= ~QStyle.StateFlag.State_Selected
         super().paint(painter, paint_option, index)
+        if self._settings.selection_style == SELECTION_STYLE_BORDER:
+            _paint_preview_selection_border(painter, option, index)
 
         if index.column() == PREVIEW_FLAG_COLUMN:
             draw_flag_glyph(
