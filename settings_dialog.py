@@ -20,7 +20,6 @@ from aqt.qt import (
     QWidget,
     Qt,
 )
-
 from .addon_config import (
     AddonSettings,
     OUTLINE_MODE_AUTO,
@@ -65,13 +64,9 @@ class FlagColumnSettingsDialog(QDialog):
 
         options.addSpacing(12)
         self._state_prefix_checkbox = QCheckBox(
-            "Show compact state badges in Sort Field (card rows only)", self
+            "Show compact state badges in Sort Field", self
         )
         options.addWidget(self._state_prefix_checkbox)
-
-        state_help = QLabel("Markers use ! for suspended, ✱ for marked, and → for buried.")
-        state_help.setWordWrap(True)
-        options.addWidget(state_help)
         options.addStretch(1)
         content.addLayout(options, 1)
 
@@ -88,7 +83,11 @@ class FlagColumnSettingsDialog(QDialog):
             preview_column.addWidget(preview)
             previews.addLayout(preview_column)
 
-        content.addLayout(previews)
+        preview_panel = QVBoxLayout()
+        preview_panel.addLayout(previews)
+        preview_panel.addStretch(1)
+        content.addLayout(preview_panel)
+        content.setAlignment(preview_panel, Qt.AlignmentFlag.AlignTop)
         layout.addLayout(content)
 
         self._apply_settings(get_settings())
