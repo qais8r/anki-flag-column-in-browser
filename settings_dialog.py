@@ -103,6 +103,9 @@ class FlagColumnSettingsDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
+        size = self.sizeHint()
+        self.resize(size.width() + 50, size.height())
+
     def _apply_settings(self, settings: AddonSettings) -> None:
         current_mode = (
             settings.outline_mode
