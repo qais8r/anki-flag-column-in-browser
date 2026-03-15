@@ -4,10 +4,13 @@
 
 This makes it easy to see a card's suspension or buried status without relying on other columns when flagged. A very common use case would be flagging all high yield cards, but still wanting to see suspended and buried cards in the Browse window at a glance.
 
+In card mode, the addon can also show compact state badges in the Sort Field for suspended `!`, marked `*`, and buried `→` cards.
+
 ## Usage
 
 - Open the Browse window and enable the flags column (if hidden) to see suspension and burial status alongside your cards.
-- You can change the flag outline color via Tools → “Flag Column Settings...” (auto/black/white/match flag color).
+- Compact state badges are shown in the Sort Field by default in card mode: suspended `!`, marked `*`, buried `→`.
+- You can change the flag outline color and toggle the Sort Field state badges via `Tools → Flag Column Settings...`.
 - **Note:** You may see your columns are spaced differently upon installation. Simply resize your columns and they should persist.
 
 ## Changelog
@@ -15,3 +18,4 @@ This makes it easy to see a card's suspension or buried status without relying o
 - **Version 1.0** - Initial release.
 - **Version 1.1** - Added configurable flag outline color (including auto, black, white, and match flag color).
 - **Version 1.2** - Added a live preview in the outline configuration menu.
+- **Version 2.0** - Added optional compact state badges in the Sort Field for suspended, marked, and buried cards.

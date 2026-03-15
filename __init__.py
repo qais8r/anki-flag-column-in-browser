@@ -2,7 +2,7 @@ from __future__ import annotations
 
 __name__ = "Flag Column in Browser"
 __author__ = "Qaisar"
-__version__ = "1.3"
+__version__ = "2.0"
 __description__ = "Shows a flag indicator column in the Anki Browser."
 
 import aqt
