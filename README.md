@@ -19,3 +19,4 @@ In card mode, the addon can also show compact state badges in the Sort Field for
 - **Version 1.1** - Added configurable flag outline color (including auto, black, white, and match flag color).
 - **Version 1.2** - Added a live preview in the outline configuration menu.
 - **Version 2.0** - Added optional compact state badges in the Sort Field for suspended, marked, and buried cards.
+- **Version 2.1** - Fixed font size inconsistencies with compact state badges.
