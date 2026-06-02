@@ -299,6 +299,9 @@ class FlagIconDelegate(StatusDelegate):
 
         cell = self._model.get_cell(index)
         paint_option = QStyleOptionViewItem(option)
+        cell_font = index.data(Qt.ItemDataRole.FontRole)
+        if isinstance(cell_font, QFont):
+            paint_option.font = cell_font
         paint_option.textElideMode = cell.elide_mode
         if cell.is_rtl:
             paint_option.direction = Qt.LayoutDirection.RightToLeft
@@ -313,7 +316,10 @@ class FlagIconDelegate(StatusDelegate):
             paint_option.rect, len(badges), cell.is_rtl
         )
         self._draw_state_badges(painter, badges_rect, badges, cell.is_rtl)
+        painter.save()
+        painter.setFont(paint_option.font)
         self.drawDisplay(painter, paint_option, text_rect, cell.text)
+        painter.restore()
         self.drawFocus(painter, paint_option, paint_option.rect)
         return True
 
