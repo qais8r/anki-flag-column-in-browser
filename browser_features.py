@@ -408,6 +408,11 @@ def _on_browser_did_fetch_row(card_or_note_id, is_note, row, columns) -> None:
     row._flag_indicator = 0
     row._state_badges = ()
     if is_note:
+        if aqt.mw is not None and aqt.mw.col is not None:
+            # Flags belong to cards; show the highest flag among the note's cards.
+            row._flag_indicator = aqt.mw.col.db.scalar(
+                "select max(flags & 7) from cards where nid = ?", card_or_note_id
+            ) or 0
         return
 
     settings = get_settings()

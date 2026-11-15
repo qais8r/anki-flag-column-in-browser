@@ -9,6 +9,7 @@ In card mode, the addon can also show compact state badges in the Sort Field for
 ## Usage
 
 - Open the Browse window and enable the flags column (if hidden) to see suspension and burial status alongside your cards.
+- In Notes mode, the column shows the highest flag number among the note's cards.
 - Compact state badges are shown in the Sort Field by default in card mode: suspended `!`, marked `*`, buried `→`.
 - You can change the flag outline color and toggle the Sort Field state badges via `Tools → Flag Column Settings...`.
 - **Note:** You may see your columns are spaced differently upon installation. Simply resize your columns and they should persist.
@@ -20,3 +21,4 @@ In card mode, the addon can also show compact state badges in the Sort Field for
 - **Version 1.2** - Added a live preview in the outline configuration menu.
 - **Version 2.0** - Added optional compact state badges in the Sort Field for suspended, marked, and buried cards.
 - **Version 2.1** - Fixed font size inconsistencies with compact state badges.
+- **Version 2.2** - Added flag column to Notes view in Browser! Notes mode now shows the highest flag number among a note’s cards.
